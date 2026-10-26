@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Tinvar\Container;
 
-use Tinvar\Attributes\Dependency;
-
 /**
  * Builds the application's objects: pages, layouts, queries, actions,
  * policies, middleware, and the services they take.
@@ -244,7 +242,7 @@ final class Container
             return $this->lifetimes[$class];
         }
 
-        $attribute = (new \ReflectionClass($class))->getAttributes(Dependency::class)[0] ?? null;
+        $attribute = (new \ReflectionClass($class))->getAttributes(Dependency::class, \ReflectionAttribute::IS_INSTANCEOF)[0] ?? null;
 
         return $this->lifetimes[$class] = $attribute?->newInstance()->lifetime ?? Lifetime::Transient;
     }
@@ -349,7 +347,7 @@ final class Container
     private function injectProperties(\ReflectionClass $reflection, object $object): void
     {
         foreach (self::propertiesOf($reflection) as $property) {
-            if ($property->getAttributes(Dependency::class) === [] || $property->isStatic()) {
+            if ($property->getAttributes(Dependency::class, \ReflectionAttribute::IS_INSTANCEOF) === [] || $property->isStatic()) {
                 continue;
             }
 
