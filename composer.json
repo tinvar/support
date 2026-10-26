@@ -1,0 +1,22 @@
+{
+  "name": "tinvar/support",
+  "description": "Tinvar's foundations: the container, the codecs, signing and the helpers the other Tinvar packages stand on.",
+  "type": "library",
+  "license": "MIT",
+  "require": {
+    "php": ">=8.5",
+    "ext-json": "*"
+  },
+  "suggest": {
+    "ext-msgpack": "Native MessagePack codec; the pure-PHP fallback is used when absent."
+  },
+  "autoload": {
+    "psr-4": {
+      "Tinvar\\Codec\\": "src/Codec/",
+      "Tinvar\\Container\\": "src/Container/",
+      "Tinvar\\Support\\": "src/Support/"
+    }
+  },
+  "config": { "sort-packages": true },
+  "minimum-stability": "stable"
+}
