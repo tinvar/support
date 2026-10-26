@@ -7,6 +7,9 @@
     "php": ">=8.5",
     "ext-json": "*"
   },
+  "require-dev": {
+    "pestphp/pest": "^4.0"
+  },
   "suggest": {
     "ext-msgpack": "Native MessagePack codec; the pure-PHP fallback is used when absent."
   },
@@ -16,7 +19,9 @@
       "Tinvar\\Container\\": "src/Container/",
       "Tinvar\\Support\\": "src/Support/"
     },
-    "files": ["aliases.php"]
+    "files": [
+      "aliases.php"
+    ]
   },
   "config": { "sort-packages": true },
   "minimum-stability": "stable"
