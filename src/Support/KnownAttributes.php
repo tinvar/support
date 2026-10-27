@@ -30,7 +30,8 @@ final class KnownAttributes
      * Checks the attributes on $class and on its properties, constants,
      * methods and their parameters.
      *
-     * @param \ReflectionClass<object> $class
+     * @template T of object
+     * @param \ReflectionClass<T> $class
      * @throws \LogicException naming the first attribute whose class does not exist
      */
     public static function check(\ReflectionClass $class): void
@@ -55,7 +56,8 @@ final class KnownAttributes
     /**
      * Checks the attributes of one declaration.
      *
-     * @param \ReflectionClass<object>|\ReflectionProperty|\ReflectionMethod|\ReflectionParameter|\ReflectionClassConstant $declaration
+     * @template T of object
+     * @param \ReflectionClass<T>|\ReflectionProperty|\ReflectionMethod|\ReflectionParameter|\ReflectionClassConstant $declaration
      * @throws \LogicException naming the first attribute whose class does not exist
      */
     public static function checkOn(
