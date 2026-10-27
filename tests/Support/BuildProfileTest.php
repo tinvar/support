@@ -129,6 +129,11 @@ it('refuses the test profile with a production build, or one that records nothin
     'no record' => [null],
 ])->throws(\RuntimeException::class, 'was made for production');
 
+// Each process that reads the build runs in a directory of its own.
+it('refuses a relative TINVAR_BUILD_DIR', function () {
+    BuildProfile::buildDirectory('/srv/app', ['TINVAR_BUILD_DIR' => 'dist-test']);
+})->throws(\RuntimeException::class, 'not an absolute path');
+
 it('finds the build in dist unless TINVAR_BUILD_DIR names one', function () {
     expect(BuildProfile::buildDirectory('/srv/app/', []))->toBe('/srv/app/dist')
         ->and(BuildProfile::buildDirectory('/srv/app', ['TINVAR_BUILD_DIR' => '/srv/app/dist-test/']))->toBe('/srv/app/dist-test');

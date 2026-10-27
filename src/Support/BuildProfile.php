@@ -170,12 +170,21 @@ final class BuildProfile
      * The application's build directory: TINVAR_BUILD_DIR, or `dist` in
      * $app.
      *
+     * TINVAR_BUILD_DIR must be absolute: the server, the renderers and the
+     * Caddyfile each run in a directory of their own, and a relative one
+     * named a different build to each -- the profile checked in one, the
+     * renderers loading another.
+     *
      * @param array<string, string>|null $env
+     * @throws \RuntimeException for a relative TINVAR_BUILD_DIR
      */
     public static function buildDirectory(string $app, ?array $env = null): string
     {
         $env ??= array_filter(getenv(), \is_string(...));
         $configured = $env[self::BUILD_DIR_ENV] ?? '';
+        if ($configured !== '' && !str_starts_with($configured, '/')) {
+            throw new \RuntimeException(self::BUILD_DIR_ENV . "='{$configured}' is not an absolute path; name the build by one.");
+        }
 
         return rtrim($configured !== '' ? $configured : rtrim($app, '/') . '/dist', '/');
     }
