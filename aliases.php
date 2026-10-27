@@ -19,14 +19,20 @@ declare(strict_types=1);
  * namespaces, which are the framework's, on purpose: the layer rule reads
  * src/ alone.
  */
-spl_autoload_register(static function (string $class): void {
-    $renamed = [
-        'tinvar\\data\\lazy' => Tinvar\Support\Lazy::class,
-        'tinvar\\attributes\\dependency' => Tinvar\Container\Dependency::class,
-    ][strtolower(ltrim($class, '\\'))] ?? null;
+$renamed = [
+    'tinvar\\data\\lazy' => Tinvar\Support\Lazy::class,
+    'tinvar\\attributes\\dependency' => Tinvar\Container\Dependency::class,
+];
 
-    if ($renamed !== null) {
-        @trigger_error("{$class} is deprecated since tinvar/support 0.4 and is removed in 0.5; use {$renamed}.", \E_USER_DEPRECATED);
-        class_alias($renamed, $class);
+// Recorded whether or not an alias is ever made, so a refusal of an old
+// name can say what it became (Tinvar\Support\KnownAttributes).
+Tinvar\Support\RenamedClasses::record($renamed);
+
+spl_autoload_register(static function (string $class) use ($renamed): void {
+    $current = $renamed[strtolower(ltrim($class, '\\'))] ?? null;
+
+    if ($current !== null) {
+        @trigger_error("{$class} is deprecated since tinvar/support 0.4 and is removed in 0.5; use {$current}.", \E_USER_DEPRECATED);
+        class_alias($current, $class);
     }
 });
