@@ -20,7 +20,7 @@ namespace Tinvar\Support;
  *
  * A resolver that throws fails the payload it is in, unless the field is
  * marked #[Rescue]: then the failure is reported and the field is sent as a
- * Rescued marker instead (Encoder::rescue(), ADR 0017). The mark is on the
+ * Rescued marker instead (the encoder's rescue(), ADR 0017). The mark is on the
  * field and not here, so codegen can see it.
  */
 final class Lazy
