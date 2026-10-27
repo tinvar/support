@@ -60,3 +60,24 @@ it('reads a lifetime and an injected property declared with the old #[Dependency
     expect($first)->toBe($second)
         ->and($injected->pool)->toBe($first);
 });
+
+final class WithUnknown
+{
+    #[\Tinvar\Attributes\Dependecy]
+    public Settings $settings;
+}
+
+#[\Tinvar\Container\Dependancy(Lifetime::Worker)]
+final class UnknownLifetime {}
+
+// A misspelt #[Dependency], or an old name once no alias is made for it,
+// matched nothing: the property went unfilled, or the lifetime undeclared,
+// with no word said. Refused when the class is first built.
+it('refuses a Tinvar attribute naming no class on what it builds', function () {
+    $container = new Container();
+
+    expect(fn () => $container->get(WithUnknown::class))
+        ->toThrow(\LogicException::class, WithUnknown::class . '::$settings carries #[\Tinvar\Attributes\Dependecy], which is no class.')
+        ->and(fn () => $container->get(UnknownLifetime::class))
+        ->toThrow(\LogicException::class, UnknownLifetime::class . ' carries #[\Tinvar\Container\Dependancy]');
+});

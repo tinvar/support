@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tinvar\Container;
 
+use Tinvar\Support\KnownAttributes;
+
 /**
  * Builds the application's objects: pages, layouts, queries, actions,
  * policies, middleware, and the services they take.
@@ -242,7 +244,13 @@ final class Container
             return $this->lifetimes[$class];
         }
 
-        $attribute = (new \ReflectionClass($class))->getAttributes(Dependency::class, \ReflectionAttribute::IS_INSTANCEOF)[0] ?? null;
+        // Once per class, as its lifetime is read: a Tinvar attribute naming
+        // no class -- a misspelt or unaliased #[Dependency] -- would match
+        // nothing here or on the properties injectProperties() fills.
+        $reflection = new \ReflectionClass($class);
+        KnownAttributes::check($reflection);
+
+        $attribute = $reflection->getAttributes(Dependency::class, \ReflectionAttribute::IS_INSTANCEOF)[0] ?? null;
 
         return $this->lifetimes[$class] = $attribute?->newInstance()->lifetime ?? Lifetime::Transient;
     }
