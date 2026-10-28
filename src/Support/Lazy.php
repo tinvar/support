@@ -44,7 +44,14 @@ final class Lazy
     /** @param \Closure(): mixed $resolver */
     private function __construct(private readonly \Closure $resolver) {}
 
-    /** @param \Closure(): mixed $resolver */
+    /**
+     * A Lazy is made to be put in a Data field. One made and dropped
+     * resolves nothing, ever: `#[\NoDiscard]` says so where it happens, as
+     * the spec asks of Lazy resolvers ("PHP 8.5 features used").
+     *
+     * @param \Closure(): mixed $resolver
+     */
+    #[\NoDiscard]
     public static function of(\Closure $resolver): self
     {
         $scope = self::currentScope();
@@ -121,6 +128,7 @@ final class Lazy
         }
     }
 
+    #[\NoDiscard]
     public static function value(mixed $value): self
     {
         $lazy = new self(static fn () => $value);
