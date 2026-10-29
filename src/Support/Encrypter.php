@@ -9,10 +9,10 @@ namespace Tinvar\Support;
  * column a row holds encrypted -- under a key derived from the application
  * key for this one purpose, as Signer's are.
  *
- * Given the key Kernel::appKey() hands out, which AppKey::application()
- * binds to the profile, a value encrypted in production is not one staging
+ * Given the key an application resolves with AppKey::application(), which
+ * is bound to the profile, a value encrypted in production is not one staging
  * can read, nor the other way round (ADR 0090): tenant data imported into
- * staging is re-encrypted with staging's (Tinvar\Staging\StagingImport).
+ * staging is re-encrypted with staging's by the framework's staging import.
  *
  * XChaCha20-Poly1305 from libsodium: a random 192-bit nonce per value, so
  * no counter has to be kept across workers, and a tag that refuses a value
