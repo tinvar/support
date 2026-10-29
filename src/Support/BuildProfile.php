@@ -69,6 +69,9 @@ final class BuildProfile
     /** The build's own record of its profile, in the rsc environment's output. */
     public const string BUILD_FILE = 'rsc/profile.json';
 
+    /** The client manifest a build's id is the hash of: what a browser holds code from. */
+    public const string CLIENT_MANIFEST = 'rsc/__vite_rsc_assets_manifest.js';
+
     /**
      * The profile this process serves.
      *
@@ -225,6 +228,34 @@ final class BuildProfile
         }
 
         return $profile;
+    }
+
+    /**
+     * The id `bin/serve` names $directory's build by, as TINVAR_BUILD: the
+     * first 16 hex digits of its client manifest's SHA-256 -- the spec's
+     * "client manifest hash is the version" -- and, for a build made for
+     * any profile but production, that profile in front of it
+     * (`test-…`, `staging-…`).
+     *
+     * So a test, a staging and a production build of the same source are
+     * three builds, not one, wherever ids are compared: a build history, a
+     * route or fragment token, X-Version. A production build's id is the
+     * hash alone, as it always was, so a history recorded before keeps
+     * naming the same builds.
+     *
+     * @throws \RuntimeException for a build with no client manifest, or a
+     *         record of its profile that is not one the plugin writes
+     */
+    public static function buildId(string $directory): string
+    {
+        $profile = self::ofBuild($directory);
+        $manifest = rtrim($directory, '/') . '/' . self::CLIENT_MANIFEST;
+        $hash = is_file($manifest) && !is_link($manifest) ? hash_file('sha256', $manifest) : false;
+        if ($hash === false) {
+            throw new \RuntimeException("{$manifest} is missing: {$directory} is not a finished build. Build it again.");
+        }
+
+        return ($profile === self::PRODUCTION ? '' : "{$profile}-") . substr($hash, 0, 16);
     }
 
     /**

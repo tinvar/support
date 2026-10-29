@@ -21,8 +21,10 @@ function build(?string $record): string
 
 function removeBuild(string $directory): void
 {
-    if (is_file("{$directory}/rsc/profile.json")) {
-        unlink("{$directory}/rsc/profile.json");
+    foreach (['profile.json', '__vite_rsc_assets_manifest.js'] as $file) {
+        if (is_file("{$directory}/rsc/{$file}")) {
+            unlink("{$directory}/rsc/{$file}");
+        }
     }
     rmdir("{$directory}/rsc");
     PrivateDirectory::remove($directory);
@@ -194,3 +196,31 @@ it('lets scenarios be seeded under staging and test alone', function () {
         ->and(BuildProfile::allowsScenarios('test'))->toBeTrue()
         ->and(BuildProfile::allowsScenarios('qa'))->toBeFalse();
 });
+
+// ADR 0066: a test, a staging and a production build of one source are
+// three builds, and a production build keeps the id it always had.
+it('names a build by its client manifest and, but for production, its profile', function () {
+    $manifest = "export default { clientReferenceDeps: {} };\n";
+    $hash = substr(hash('sha256', $manifest), 0, 16);
+    $ids = [];
+    foreach (['production' => null, 'staging' => 'staging', 'test' => 'test'] as $name => $profile) {
+        $directory = build($profile === null ? null : json_encode(['format' => 1, 'profile' => $profile], JSON_THROW_ON_ERROR));
+        file_put_contents("{$directory}/rsc/__vite_rsc_assets_manifest.js", $manifest);
+        try {
+            $ids[$name] = BuildProfile::buildId($directory);
+        } finally {
+            removeBuild($directory);
+        }
+    }
+
+    expect($ids)->toBe(['production' => $hash, 'staging' => "staging-{$hash}", 'test' => "test-{$hash}"]);
+});
+
+it('refuses to name a build with no client manifest', function () {
+    $directory = build(null);
+    try {
+        BuildProfile::buildId($directory);
+    } finally {
+        removeBuild($directory);
+    }
+})->throws(\RuntimeException::class, 'is not a finished build');
