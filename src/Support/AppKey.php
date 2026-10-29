@@ -28,6 +28,60 @@ final class AppKey
     public const int MIN_LENGTH = 32;
 
     /**
+     * The application's signing key, as every signer, cipher and derived
+     * key is to be given it: resolve()'d, and bound to the profile this
+     * process serves (forProfile()). An application's Kernel resolves its
+     * key through here, never through resolve(), which a secret meant to be
+     * handed out as it is -- the probe token -- uses.
+     *
+     * @param string $envName the variable that, if set, wins
+     * @param string $file    where a generated key is kept
+     * @param array<string, string>|null $env the environment the profile is read from; the process's own by default
+     * @throws \RuntimeException where the profile is refused (BuildProfile)
+     */
+    public static function application(string $envName, string $file, ?array $env = null): string
+    {
+        // The profile first: a refused one stops before a key is generated.
+        $profile = BuildProfile::fromEnvironment($env);
+
+        return self::forProfile(self::resolve($envName, $file), $profile);
+    }
+
+    /**
+     * $key bound to $profile: production's is the key itself, and every
+     * other profile's an HMAC of the profile's name under it (ADR 0090).
+     *
+     * So a staging server handed production's key by mistake -- a copied
+     * secret, a restored backup of its configuration -- still signs, derives
+     * and encrypts under a key of its own, and nothing either one mints is
+     * believed by the other: every session cookie, route, fragment, CSRF and
+     * upload token, signed URL, hub token and encrypted column is made with
+     * a key derived from this one, so binding it here binds them all.
+     *
+     * Production's is left as it is: binding it too would change the key
+     * of every deployment already running and refuse every token in flight,
+     * and separates nothing more. A staging key that equalled production's
+     * would need an HMAC preimage.
+     *
+     * The result is printable ASCII past MIN_LENGTH, as a key read from
+     * anywhere is, so whatever checks a key's shape takes it.
+     *
+     * @throws \InvalidArgumentException for a profile there is none of
+     */
+    public static function forProfile(#[\SensitiveParameter] string $key, string $profile): string
+    {
+        if (!\in_array($profile, BuildProfile::PROFILES, true)) {
+            throw new \InvalidArgumentException("'{$profile}' is not a profile: a key is bound to production, staging or test.");
+        }
+
+        if ($profile === BuildProfile::PRODUCTION) {
+            return $key;
+        }
+
+        return "tinvar-{$profile}." . Signer::encode(hash_hmac('sha256', "tinvar-profile\0{$profile}", $key, true));
+    }
+
+    /**
      * @param string $envName the variable that, if set, wins
      * @param string $file    where a generated key is kept
      */
