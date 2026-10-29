@@ -26,10 +26,25 @@ final class DevMode
     public static function fromEnvironment(?array $env = null): bool
     {
         $env ??= getenv();
-        if (($env['TINVAR_DEV'] ?? '') !== '1') {
+
+        return self::check(($env['TINVAR_DEV'] ?? '') === '1', $env);
+    }
+
+    /**
+     * Whether dev mode is on, given whether it was asked for -- by the
+     * framework's config, which reads TINVAR_DEV -- held to the production
+     * markers in $env.
+     *
+     * @param array<string, string>|null $env the environment; the process's own by default
+     * @throws \RuntimeException when dev mode is asked for in production
+     */
+    public static function check(bool $asked, ?array $env = null): bool
+    {
+        if (!$asked) {
             return false;
         }
 
+        $env ??= getenv();
         $marker = self::productionMarker($env);
         if ($marker !== null) {
             throw new \RuntimeException(

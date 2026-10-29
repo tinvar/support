@@ -78,7 +78,22 @@ final class BuildProfile
     public static function fromEnvironment(?array $env = null): string
     {
         $env ??= array_filter(getenv(), \is_string(...));
-        $profile = strtolower(trim($env[self::ENV] ?? ''));
+
+        return self::resolve($env[self::ENV] ?? '', ($env['TINVAR_DEV'] ?? '') === '1', $env);
+    }
+
+    /**
+     * The profile $given names -- as the framework's config read it from
+     * TINVAR_PROFILE -- held to the rest of $env as fromEnvironment() holds
+     * it, with $dev for whether dev mode was asked for.
+     *
+     * @param array<string, string>|null $env the environment; the process's own by default
+     * @throws \RuntimeException when the profile is unknown, or test where it is refused
+     */
+    public static function resolve(string $given, bool $dev, ?array $env = null): string
+    {
+        $env ??= array_filter(getenv(), \is_string(...));
+        $profile = strtolower(trim($given));
         $profile = $profile === '' ? self::PRODUCTION : $profile;
         if (!\in_array($profile, self::PROFILES, true)) {
             throw new \RuntimeException(self::ENV . "='{$profile}' is not a profile: it is production, staging or test.");
@@ -108,7 +123,7 @@ final class BuildProfile
             return $profile;
         }
 
-        self::assertTestAllowed($env);
+        self::assertTestAllowed([...$env, 'TINVAR_DEV' => $dev ? '1' : '']);
 
         return $profile;
     }
