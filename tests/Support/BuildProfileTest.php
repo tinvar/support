@@ -39,7 +39,7 @@ it('is test where the environment says it is not production', function (string $
 })->with(['testing', 'local', 'development']);
 
 it('refuses a profile it does not know', function () {
-    BuildProfile::fromEnvironment(['TINVAR_PROFILE' => 'staging']);
+    BuildProfile::fromEnvironment(['TINVAR_PROFILE' => 'qa']);
 })->throws(\RuntimeException::class, 'is not a profile');
 
 // Unset counts as production, as it does for migrate:fresh.
@@ -83,7 +83,7 @@ it('reads the profile a build records', function (string $profile) {
     } finally {
         removeBuild($directory);
     }
-})->with(['production', 'test']);
+})->with(['production', 'staging', 'test']);
 
 it('refuses a record it cannot read', function (string $record) {
     $directory = build($record);
@@ -95,7 +95,7 @@ it('refuses a record it cannot read', function (string $record) {
 })->with([
     'not json' => ['test'],
     'no format' => ['{"profile":"test"}'],
-    'unknown profile' => ['{"format":1,"profile":"staging"}'],
+    'unknown profile' => ['{"format":1,"profile":"qa"}'],
 ])->throws(\RuntimeException::class, 'does not say which profile');
 
 it('serves a build made for its own profile', function (string $profile) {
@@ -106,7 +106,7 @@ it('serves a build made for its own profile', function (string $profile) {
     } finally {
         removeBuild($directory);
     }
-})->with(['production', 'test']);
+})->with(['production', 'staging', 'test']);
 
 it('refuses a test build without the test profile', function () {
     $directory = build('{"format":1,"profile":"test"}');
@@ -137,4 +137,60 @@ it('refuses a relative TINVAR_BUILD_DIR', function () {
 it('finds the build in dist unless TINVAR_BUILD_DIR names one', function () {
     expect(BuildProfile::buildDirectory('/srv/app/', []))->toBe('/srv/app/dist')
         ->and(BuildProfile::buildDirectory('/srv/app', ['TINVAR_BUILD_DIR' => '/srv/app/dist-test/']))->toBe('/srv/app/dist-test');
+});
+
+// Staging (ADR 0090): production's build, made for an environment of its own.
+
+it('is staging where TINVAR_ENV says staging', function () {
+    expect(BuildProfile::fromEnvironment(['TINVAR_PROFILE' => 'staging', 'TINVAR_ENV' => 'Staging']))->toBe('staging')
+        ->and(BuildProfile::fromEnvironment(['TINVAR_PROFILE' => 'staging', 'TINVAR_ENV' => 'staging', 'NODE_ENV' => 'production']))->toBe('staging');
+});
+
+it('refuses the staging profile where TINVAR_ENV does not say staging', function (array $env) {
+    BuildProfile::fromEnvironment(['TINVAR_PROFILE' => 'staging', ...$env]);
+})->with([
+    'unset' => [[]],
+    'local' => [['TINVAR_ENV' => 'local']],
+    'testing' => [['TINVAR_ENV' => 'testing']],
+])->throws(\RuntimeException::class, 'does not say staging');
+
+it('refuses the staging profile where TINVAR_ENV or APP_ENV says production', function (array $env) {
+    BuildProfile::fromEnvironment(['TINVAR_PROFILE' => 'staging', ...$env]);
+})->with([
+    'TINVAR_ENV' => [['TINVAR_ENV' => 'production']],
+    'APP_ENV' => [['TINVAR_ENV' => 'staging', 'APP_ENV' => 'production']],
+])->throws(\RuntimeException::class, '=production');
+
+it('refuses the staging profile in dev mode', function () {
+    BuildProfile::fromEnvironment(['TINVAR_PROFILE' => 'staging', 'TINVAR_ENV' => 'staging', 'TINVAR_DEV' => '1']);
+})->throws(\RuntimeException::class, 'dev mode');
+
+// A staging deployment that forgot its profile would sign with production's key derivation.
+it('refuses TINVAR_ENV=staging under the production profile', function (string $profile) {
+    BuildProfile::fromEnvironment(['TINVAR_PROFILE' => $profile, 'TINVAR_ENV' => 'staging']);
+})->with(['unset' => [''], 'production' => ['production']])->throws(\RuntimeException::class, 'TINVAR_ENV=staging, and the profile is production');
+
+it('refuses a test run named under the staging profile', function () {
+    BuildProfile::fromEnvironment(['TINVAR_PROFILE' => 'staging', 'TINVAR_ENV' => 'staging', 'TINVAR_TEST_RUN' => '/tmp/run']);
+})->throws(\RuntimeException::class, 'TINVAR_TEST_RUN is set, and the profile is staging');
+
+it('serves a build under the profile it was made for alone', function (string $built, string $serving) {
+    $directory = build(json_encode(['format' => 1, 'profile' => $built], JSON_THROW_ON_ERROR));
+    try {
+        BuildProfile::assertBuild($serving, $directory);
+    } finally {
+        removeBuild($directory);
+    }
+})->with([
+    'staging build, production server' => ['staging', 'production'],
+    'production build, staging server' => ['production', 'staging'],
+    'staging build, test server' => ['staging', 'test'],
+    'test build, staging server' => ['test', 'staging'],
+])->throws(\RuntimeException::class, 'served only under the profile it was made for');
+
+it('lets scenarios be seeded under staging and test alone', function () {
+    expect(BuildProfile::allowsScenarios('production'))->toBeFalse()
+        ->and(BuildProfile::allowsScenarios('staging'))->toBeTrue()
+        ->and(BuildProfile::allowsScenarios('test'))->toBeTrue()
+        ->and(BuildProfile::allowsScenarios('qa'))->toBeFalse();
 });
