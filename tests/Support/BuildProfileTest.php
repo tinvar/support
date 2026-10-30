@@ -172,6 +172,10 @@ it('refuses TINVAR_ENV=staging under the production profile', function (string $
     BuildProfile::fromEnvironment(['TINVAR_PROFILE' => $profile, 'TINVAR_ENV' => 'staging']);
 })->with(['unset' => [''], 'production' => ['production']])->throws(\RuntimeException::class, 'TINVAR_ENV=staging, and the profile is production');
 
+it('refuses APP_ENV=staging under the production profile', function (string $profile) {
+    BuildProfile::fromEnvironment(['TINVAR_PROFILE' => $profile, 'APP_ENV' => 'staging']);
+})->with(['unset' => [''], 'production' => ['production']])->throws(\RuntimeException::class, 'APP_ENV=staging, and the profile is production');
+
 it('refuses a test run named under the staging profile', function () {
     BuildProfile::fromEnvironment(['TINVAR_PROFILE' => 'staging', 'TINVAR_ENV' => 'staging', 'TINVAR_TEST_RUN' => '/tmp/run']);
 })->throws(\RuntimeException::class, 'TINVAR_TEST_RUN is set, and the profile is staging');

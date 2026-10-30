@@ -102,12 +102,16 @@ final class BuildProfile
             throw new \RuntimeException(self::ENV . "='{$profile}' is not a profile: it is production, staging or test.");
         }
 
-        $environment = strtolower(trim($env['TINVAR_ENV'] ?? ''));
-        if ($profile === self::PRODUCTION && $environment === self::STAGING_ENV) {
-            throw new \RuntimeException(
-                "TINVAR_ENV=staging, and the profile is {$profile}. Staging is served under " . self::ENV . '=staging, '
-                . 'whose key is its own: set it, with a build made by `tinvar build --profile=staging`.',
-            );
+        // Either of the application's words for where it is: a staging
+        // deployment that set APP_ENV alone and forgot its profile would
+        // sign with production's key as surely as one that set TINVAR_ENV.
+        foreach (['TINVAR_ENV', 'APP_ENV'] as $marker) {
+            if ($profile === self::PRODUCTION && strtolower(trim($env[$marker] ?? '')) === self::STAGING_ENV) {
+                throw new \RuntimeException(
+                    "{$marker}=staging, and the profile is {$profile}. Staging is served under " . self::ENV . '=staging, '
+                    . 'whose key is its own: set it, with a build made by `tinvar build --profile=staging`.',
+                );
+            }
         }
 
         if ($profile === self::STAGING) {
