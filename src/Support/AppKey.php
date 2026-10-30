@@ -82,6 +82,53 @@ final class AppKey
     }
 
     /**
+     * A secret handed out as it is -- the probe token -- resolve()'d and
+     * bound to the profile this process serves, as the application key is
+     * (application()): production's as given, every other profile's
+     * bound(). So a staging server given production's token lets in only
+     * what is sent staging's, and production's scrapers' token opens
+     * nothing on staging -- nor staging's anything on production.
+     *
+     * @param array<string, string>|null $env the environment the profile is read from; the process's own by default
+     * @throws \RuntimeException where the profile is refused (BuildProfile)
+     */
+    public static function secret(string $envName, string $file, ?array $env = null): string
+    {
+        $profile = BuildProfile::fromEnvironment($env);
+
+        return self::bound(self::resolve($envName, $file), $profile);
+    }
+
+    /**
+     * $secret bound to $profile as forProfile() binds a key, taking a value
+     * already bound to that profile as it is: a secret one process binds is
+     * handed to the processes it starts in the same variable it read --
+     * `tinvar serve` gives the hub's keys to FrankenPHP's workers so -- and
+     * binding it twice would part them.
+     *
+     * A value bound to another profile is refused rather than bound again
+     * or taken: it was copied from that profile's server, which is what
+     * binding is to keep apart. Production's own values carry no mark, so
+     * a staging value handed to production is refused there.
+     *
+     * @throws \InvalidArgumentException for a value bound to another profile, or a profile there is none of
+     */
+    public static function bound(#[\SensitiveParameter] string $secret, string $profile): string
+    {
+        foreach (BuildProfile::PROFILES as $any) {
+            if ($any !== BuildProfile::PRODUCTION && str_starts_with($secret, "tinvar-{$any}.")) {
+                if ($any !== $profile) {
+                    throw new \InvalidArgumentException("A secret bound to the {$any} profile is refused under {$profile}: it was copied from another profile's server.");
+                }
+
+                return $secret;
+            }
+        }
+
+        return self::forProfile($secret, $profile);
+    }
+
+    /**
      * @param string $envName the variable that, if set, wins
      * @param string $file    where a generated key is kept
      */

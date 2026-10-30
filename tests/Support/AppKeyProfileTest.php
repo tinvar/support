@@ -63,3 +63,28 @@ it('reads the profile from the environment it is given, before any key is made',
         PrivateDirectory::remove($directory);
     }
 });
+
+// The probe token and the hub's keys set in the environment, bound as the
+// key is: what staging lets in is not what production's scrapers send.
+it('binds a secret handed out as it is, once, and refuses one bound to another profile', function () {
+    $staging = AppKey::bound(KEY, 'staging');
+
+    expect(AppKey::bound(KEY, 'production'))->toBe(KEY)
+        ->and($staging)->toBe(AppKey::forProfile(KEY, 'staging'))
+        // Handed on in the variable it was read from, it is not bound twice.
+        ->and(AppKey::bound($staging, 'staging'))->toBe($staging)
+        ->and(fn () => AppKey::bound($staging, 'production'))->toThrow(\InvalidArgumentException::class, 'bound to the staging profile')
+        ->and(fn () => AppKey::bound(AppKey::forProfile(KEY, 'test'), 'staging'))->toThrow(\InvalidArgumentException::class, 'bound to the test profile');
+});
+
+it('resolves the probe token bound to the profile the environment names', function () {
+    $directory = PrivateDirectory::create('appkey-secret');
+    putenv('TINVAR_TEST_PROBE=' . KEY);
+    try {
+        expect(AppKey::secret('TINVAR_TEST_PROBE', "{$directory}/token", []))->toBe(KEY)
+            ->and(AppKey::secret('TINVAR_TEST_PROBE', "{$directory}/token", ['TINVAR_PROFILE' => 'staging', 'TINVAR_ENV' => 'staging']))
+            ->toBe(AppKey::forProfile(KEY, 'staging'));
+    } finally {
+        putenv('TINVAR_TEST_PROBE');
+    }
+});
