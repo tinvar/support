@@ -168,7 +168,8 @@ it('clears temporary key files a crash left behind', function () {
 
 // Several processes starting at once must all end up with one key.
 it('gives concurrent first starts one key between them', function () {
-    $autoload = dirname(__DIR__, 4) . '/vendor/autoload.php';
+    // Whichever vendor/ this run has -- the workspace's, or a mirror's own.
+    $autoload = dirname((string) (new \ReflectionClass(\Composer\Autoload\ClassLoader::class))->getFileName(), 2) . '/autoload.php';
     $script = sprintf(
         'require %s; echo Tinvar\\Support\\AppKey::resolve("TINVAR_UNSET_KEY", %s);',
         var_export($autoload, true),
