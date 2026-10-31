@@ -41,7 +41,12 @@ final class MessagePackCodec implements FrameCodec
             return $this->frame(MessagePack::encode($frame));
         }
 
-        self::assertPlain($frame);
+        // A Bin is the pure encoder's, which writes it as MessagePack bin:
+        // ext-msgpack would write the object, so a frame holding one -- a
+        // render's non-UTF-8 chunk -- goes the pure way.
+        if (self::assertPlain($frame)) {
+            return $this->frame(MessagePack::encode($frame));
+        }
 
         return $this->frame(msgpack_pack($frame));
     }
@@ -63,22 +68,28 @@ final class MessagePackCodec implements FrameCodec
     }
 
     /**
-     * Arrays and scalars only, as the pure-PHP encoder accepts.
+     * Arrays and scalars only, and Bin, as the pure-PHP encoder accepts.
      *
      * @param array<array-key, mixed> $value
+     * @return bool whether it holds a Bin anywhere, which only the pure-PHP encoder writes as bin
      */
-    public static function assertPlain(array $value, int $depth = 0): void
+    public static function assertPlain(array $value, int $depth = 0): bool
     {
         if ($depth > MessagePack::MAX_DEPTH) {
             throw new CodecException('Frame nests deeper than ' . MessagePack::MAX_DEPTH . ' levels.');
         }
 
+        $bin = false;
         foreach ($value as $item) {
             if (\is_array($item)) {
-                self::assertPlain($item, $depth + 1);
+                $bin = self::assertPlain($item, $depth + 1) || $bin;
+            } elseif ($item instanceof Bin) {
+                $bin = true;
             } elseif (\is_object($item) || \is_resource($item)) {
                 throw new CodecException('Cannot encode ' . get_debug_type($item) . '; only arrays and scalars cross the socket.');
             }
         }
+
+        return $bin;
     }
 }

@@ -96,4 +96,32 @@ describe('framing', function () {
         $offset = 0;
         expect($codec->decodeFrame($bytes, $offset)['b'])->toBe($chunk);
     });
+
+    // With ext-msgpack loaded, a frame is checked before msgpack_pack(),
+    // and the check refused Bin: every non-UTF-8 render chunk failed.
+    it('takes Bin as plain, and says when a frame holds one', function () {
+        expect(MessagePackCodec::assertPlain(['t' => 'chunk', 'b' => new Bin("\x00\xff")]))->toBeTrue()
+            ->and(MessagePackCodec::assertPlain(['t' => 'chunk', 'nested' => [['b' => new Bin('x')]]]))->toBeTrue()
+            ->and(MessagePackCodec::assertPlain(['t' => 'chunk', 'b' => 'text']))->toBeFalse();
+    });
+
+    it('writes a frame holding Bin as bin with ext-msgpack loaded', function () {
+        $native = new ReflectionProperty(MessagePackCodec::class, 'native');
+        $was = $native->getValue();
+        $native->setValue(null, true);
+
+        try {
+            $chunk = "\x00\xff\xfe<div>\x80";
+            $codec = new MessagePackCodec();
+            $bytes = $codec->encodeFrame(['t' => 'chunk', 'b' => new Bin($chunk)]);
+
+            $offset = 0;
+            expect($codec->name())->toBe('msgpack (ext encode)')
+                ->and($codec->decodeFrame($bytes, $offset))->toBe(['t' => 'chunk', 'b' => $chunk])
+                // And a frame without one still goes through the extension.
+                ->and($codec->encodeFrame(['t' => 'done']))->toBe((new MessagePackCodec())->encodeFrame(['t' => 'done']));
+        } finally {
+            $native->setValue(null, $was);
+        }
+    })->skip(!extension_loaded('msgpack'), 'ext-msgpack is not loaded');
 });
