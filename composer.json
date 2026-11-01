@@ -8,7 +8,7 @@
     "ext-json": "*"
   },
   "require-dev": {
-    "pestphp/pest": "^4.0"
+    "pestphp/pest": "^5.3"
   },
   "suggest": {
     "ext-msgpack": "Native MessagePack codec; the pure-PHP fallback is used when absent."
