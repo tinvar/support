@@ -124,6 +124,18 @@ final class Container
     }
 
     /**
+     * Whether the application registered this class -- an instance, or a
+     * binding -- as opposed to one the container could build on its own.
+     * What the Kernel asks before it mounts something only an application
+     * that set it up should have: a class the container could autowire is
+     * not a choice anyone made.
+     */
+    public function registered(string $class): bool
+    {
+        return isset($this->shared[$class]) || isset($this->bindings[$class]);
+    }
+
+    /**
      * The container as the resolver closure the Kernel and the registries
      * take.
      *
