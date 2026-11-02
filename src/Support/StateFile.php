@@ -8,7 +8,7 @@ namespace Tinvar\Support;
  * Where an application keeps what it generates for itself and must never
  * keep inside its own directory: the app key, the probe token, and the
  * secrets `tinvar new` and `tinvar deploy:init` generate for a deployment
- * (ADR 0082, 0150).
+ * (ADR 0082, 0155).
  *
  * One file per application on this machine and per kind, in this user's
  * state directory -- `$XDG_STATE_HOME/tinvar/`, else `~/.local/state/tinvar/`
