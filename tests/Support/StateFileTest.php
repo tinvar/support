@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 /**
  * Where an application's generated secrets live: this user's state
- * directory, one file per application and kind (ADR 0082, 0156).
+ * directory, one file per application and kind (ADR 0082, 0157).
  */
 
 use Tinvar\Support\StateFile;
