@@ -235,7 +235,7 @@ final class BuildProfile
     }
 
     /**
-     * The id `bin/serve` names $directory's build by, as TINVAR_BUILD: the
+     * The id `php tinvar serve` names $directory's build by, as TINVAR_BUILD: the
      * first 16 hex digits of its client manifest's SHA-256 -- the spec's
      * "client manifest hash is the version" -- and, for a build made for
      * any profile but production, that profile in front of it
