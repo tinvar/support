@@ -35,6 +35,9 @@ final class Container
     /** @var array<class-string, Lifetime> */
     private array $lifetimes = [];
 
+    /** @var array<string, class-string> each spelling of a class asked for, and the class's own name */
+    private array $names = [];
+
     /** @var list<string> classes being built, outermost first */
     private array $building = [];
 
@@ -60,7 +63,7 @@ final class Container
      */
     public function instance(string $class, object $instance): self
     {
-        $this->shared[$class] = $instance;
+        $this->shared[$this->name($class)] = $instance;
 
         return $this;
     }
@@ -74,6 +77,8 @@ final class Container
      */
     public function bind(string $abstract, string|\Closure $concrete, Lifetime $lifetime = Lifetime::Transient): self
     {
+        $abstract = $this->name($abstract);
+        $concrete = \is_string($concrete) ? $this->name($concrete) : $concrete;
         // A class bound to itself -- the way to give a class with no
         // attribute a lifetime -- is built directly; through get() it would
         // re-enter its own resolution and read as a cycle.
@@ -94,20 +99,16 @@ final class Container
      */
     public function get(string $class): object
     {
+        $key = $this->name($class);
         // Checked on every lookup of a request-lived service, not only when
         // it is first built: in a real request the service usually exists
         // already -- a page or middleware asked for it -- when a worker
         // service that wants it is built, and that is exactly the capture.
-        if (isset($this->perRequest[$class])) {
-            $this->assertNotCaptive($class, Lifetime::Request);
+        if (isset($this->perRequest[$key])) {
+            $this->assertNotCaptive($key, Lifetime::Request);
         }
 
-        if (!isset($this->shared[$class]) && !isset($this->bindings[$class])
-            && !class_exists($class) && !interface_exists($class)) {
-            throw ContainerException::unknownClass($class);
-        }
-
-        $object = $this->shared[$class] ?? $this->perRequest[$class] ?? $this->resolve($class);
+        $object = $this->shared[$key] ?? $this->perRequest[$key] ?? $this->resolve($key);
         // A binding's factory can build anything; checked before it is
         // shared, in resolve(), and here for registered instances.
         if (!$object instanceof $class) {
@@ -120,7 +121,11 @@ final class Container
     /** Whether the container can build or hand out this class. */
     public function has(string $class): bool
     {
-        return $this->canProvide($class);
+        try {
+            return $this->canProvide($this->name($class));
+        } catch (ContainerException) {
+            return false;
+        }
     }
 
     /**
@@ -132,7 +137,35 @@ final class Container
      */
     public function registered(string $class): bool
     {
-        return isset($this->shared[$class]) || isset($this->bindings[$class]);
+        try {
+            $key = $this->name($class);
+        } catch (ContainerException) {
+            return false;
+        }
+
+        return isset($this->shared[$key]) || isset($this->bindings[$key]);
+    }
+
+    /**
+     * The name a class is kept under, however it was spelt (ADR 0220):
+     * PHP's class names are case-insensitive and take a leading backslash,
+     * and keyed by the string as given, `\App\Clock` or `app\clock` missed
+     * the instance registered as App\Clock and autowired another.
+     *
+     * @return class-string
+     * @throws ContainerException for a name that is no class or interface
+     */
+    private function name(string $class): string
+    {
+        if (isset($this->names[$class])) {
+            return $this->names[$class];
+        }
+        $trimmed = ltrim($class, '\\');
+        if (!class_exists($trimmed) && !interface_exists($trimmed)) {
+            throw ContainerException::unknownClass($class);
+        }
+
+        return $this->names[$class] = new \ReflectionClass($trimmed)->getName();
     }
 
     /**

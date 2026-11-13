@@ -405,3 +405,38 @@ describe('captive dependencies', function () {
             ->and($container->get(Meter::class))->toBeInstanceOf(Meter::class);
     });
 });
+
+describe('a class however its name is spelt (ADR 0220)', function () {
+    // PHP's class names are case-insensitive and take a leading backslash;
+    // the container's tables were keyed by the exact string, so another
+    // spelling missed what was registered and autowired a second one.
+
+    it('hands out the registered instance', function (string $spelling) {
+        $config = new Config('us', 5);
+        $container = new Container()->instance(Config::class, $config);
+
+        expect($container->get($spelling))->toBe($config)
+            ->and($container->registered($spelling))->toBeTrue()
+            ->and($container->resolver()($spelling))->toBe($config);
+    })->with([
+        'leading backslash' => ['\\' . Config::class],
+        'lower case' => [strtolower(Config::class)],
+    ]);
+
+    it('registers under the class, whatever spelling it was given', function () {
+        $config = new Config('us', 5);
+        $container = new Container()->instance(strtoupper(Config::class), $config)->bind('\\' . Clock::class, FixedClock::class);
+
+        expect($container->get(Config::class))->toBe($config)
+            ->and($container->registered(Clock::class))->toBeTrue()
+            ->and($container->get(Clock::class))->toBeInstanceOf(FixedClock::class);
+    });
+
+    it('keeps one worker-lived instance, and one request-lived one', function () {
+        $container = new Container();
+
+        expect($container->get(strtolower(Pool::class)))->toBe($container->get(Pool::class))
+            ->and($container->get('\\' . Pool::class))->toBe($container->get(Pool::class))
+            ->and($container->get(strtolower(Meter::class)))->toBe($container->get(Meter::class));
+    });
+});
