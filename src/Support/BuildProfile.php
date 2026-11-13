@@ -64,7 +64,7 @@ final class BuildProfile
     public const string STAGING_ENV = 'staging';
 
     /** The TINVAR_ENV values that say this is not production; nothing else does. */
-    public const array NON_PRODUCTION = ['local', 'development', 'testing'];
+    public const array NON_PRODUCTION = DevMode::DEVELOPMENT;
 
     /** The build's own record of its profile, in the rsc environment's output. */
     public const string BUILD_FILE = 'rsc/profile.json';
