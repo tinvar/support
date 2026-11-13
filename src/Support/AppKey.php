@@ -281,16 +281,12 @@ final class AppKey
      * and writable by nobody else; the file readable by nobody outside its
      * group, so a key shared with the web server's group still works.
      *
-     * Skipped where POSIX ownership and modes do not exist (Windows), which
-     * relies on the profile's ACLs instead.
+     * Never skipped: where PHP cannot say who this process is -- no
+     * ext-posix -- the file is refused, not believed (Posix, ADR 0212).
      */
     private static function assertTrusted(string $file): void
     {
-        if (PHP_OS_FAMILY === 'Windows' || !\function_exists('posix_geteuid')) {
-            return;
-        }
-
-        $trusted = [posix_geteuid(), 0];
+        $trusted = [Posix::effectiveUser("the application key file {$file}"), 0];
         clearstatcache();
 
         if (is_link($file) && !file_exists($file)) {

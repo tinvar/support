@@ -5,7 +5,8 @@
   "license": "MIT",
   "require": {
     "php": ">=8.5",
-    "ext-json": "*"
+    "ext-json": "*",
+    "ext-posix": "*"
   },
   "require-dev": {
     "pestphp/pest": "^5.3"
