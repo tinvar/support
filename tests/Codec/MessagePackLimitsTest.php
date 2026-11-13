@@ -47,6 +47,62 @@ it('refuses a count the remaining bytes could not hold', function () {
     expect(fn () => MessagePack::decode("\xdd\xff\xff\xff\xff\xc0"))->toThrow(CodecException::class);
 });
 
+/** A map of $keys to nil, as MessagePack writes it. */
+function mapOf(array $keys): string
+{
+    $bytes = "\xdf" . pack('N', \count($keys));
+    foreach ($keys as $key) {
+        $bytes .= MessagePack::encode($key) . "\xc0";
+    }
+
+    return $bytes;
+}
+
+/** 2^$pairs distinct strings PHP hashes alike: "Ez" and "FY" are one DJBX33A step apart. */
+function collidingStrings(int $pairs): array
+{
+    $keys = [''];
+    for ($i = 0; $i < $pairs; $i++) {
+        $keys = [...array_map(static fn (string $k): string => $k . 'Ez', $keys), ...array_map(static fn (string $k): string => $k . 'FY', $keys)];
+    }
+
+    return $keys;
+}
+
+describe('a map whose keys PHP would hash into one bucket (ADR 0220)', function () {
+    // A PHP array inserts in time proportional to the keys already in the
+    // key's bucket, so keys that all share one cost quadratic time: 65,536
+    // integers 2^20 apart, a 655 KB frame, took 1.8 s to decode.
+
+    it('refuses integers that share their low bits', function () {
+        $keys = array_map(static fn (int $i): int => $i << 20, range(1, 4096));
+
+        expect(fn () => MessagePack::decode(mapOf($keys)))->toThrow(CodecException::class, 'collide');
+    });
+
+    it('refuses strings that hash alike', function () {
+        expect(fn () => MessagePack::decode(mapOf(collidingStrings(12))))->toThrow(CodecException::class, 'collide');
+    });
+
+    it('refuses digit strings, which PHP keys as the integers they spell', function () {
+        $keys = array_map(static fn (int $i): string => (string) ($i << 20), range(1, 4096));
+
+        expect(fn () => MessagePack::decode(mapOf($keys)))->toThrow(CodecException::class, 'collide');
+    });
+
+    it('decodes large maps of ordinary keys', function (array $keys) {
+        $decoded = MessagePack::decode(mapOf($keys));
+
+        expect(array_keys($decoded))->toBe(array_map(static fn (int|string $k): int|string => \is_string($k) && (string) (int) $k === $k ? (int) $k : $k, $keys));
+    })->with([
+        'names' => [array_map(static fn (int $i): string => "field_{$i}", range(1, 20_000))],
+        'ids' => [range(1_000_000, 1_020_000)],
+        'sparse ids' => [array_map(static fn (int $i): int => 7 + $i * 37, range(1, 20_000))],
+        'uuids' => [array_map(static fn (int $i): string => sprintf('%08x-0000-4000-8000-%012x', crc32((string) $i), $i), range(1, 5_000))],
+        'timestamps' => [array_map(static fn (int $i): int => 1_700_000_000 + $i * 60, range(1, 5_000))],
+    ]);
+});
+
 it('still decodes an ordinary frame', function () {
     $frame = ['t' => 'query', 'q' => [['id' => 1, 'name' => 'racks.summary', 'args' => ['rack' => 'r1']]]];
 

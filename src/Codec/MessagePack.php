@@ -25,6 +25,17 @@ final class MessagePack
      */
     public const int MAX_ELEMENTS = 65_536;
 
+    /**
+     * Maps larger than this have their keys' spread checked before they are
+     * built (ADR 0220). A smaller one costs little however its keys collide:
+     * MAX_ELEMENTS of them in maps of this size, every key in one bucket,
+     * is about 33 million probes.
+     */
+    public const int SPREAD_CHECKED_ABOVE = 1024;
+
+    /** Colliding pairs per key a checked map may have: ordinary keys have about half of one. */
+    public const int COLLISIONS_PER_KEY = 8;
+
     public static function encode(mixed $value): string
     {
         return self::encodeValue($value);
@@ -198,16 +209,88 @@ final class MessagePack
     {
         self::admit($b, $o, $n, 2 * $n, $depth, $budget);
 
-        $out = [];
-        for ($i = 0; $i < $n; $i++) {
-            $k = self::decodeValue($b, $o, $depth + 1, $budget);
-            if (!\is_int($k) && !\is_string($k)) {
-                throw new CodecException('Map keys must be int or string.');
+        if ($n <= self::SPREAD_CHECKED_ABOVE) {
+            $out = [];
+            for ($i = 0; $i < $n; $i++) {
+                $k = self::mapKey(self::decodeValue($b, $o, $depth + 1, $budget));
+                $out[$k] = self::decodeValue($b, $o, $depth + 1, $budget);
             }
-            $out[$k] = self::decodeValue($b, $o, $depth + 1, $budget);
+
+            return $out;
+        }
+
+        // Read whole, and the keys' spread checked, before one is inserted.
+        $keys = [];
+        $values = [];
+        for ($i = 0; $i < $n; $i++) {
+            $keys[] = self::mapKey(self::decodeValue($b, $o, $depth + 1, $budget));
+            $values[] = self::decodeValue($b, $o, $depth + 1, $budget);
+        }
+        self::assertSpread($keys);
+
+        $out = [];
+        foreach ($keys as $i => $k) {
+            $out[$k] = $values[$i];
         }
 
         return $out;
+    }
+
+    private static function mapKey(mixed $k): int|string
+    {
+        if (!\is_int($k) && !\is_string($k)) {
+            throw new CodecException('Map keys must be int or string.');
+        }
+
+        return $k;
+    }
+
+    /**
+     * Refuses keys PHP would put in few of an array's buckets. An array
+     * inserts in time proportional to the keys already in the bucket, so
+     * keys chosen to share one -- integers 2^20 apart, strings built from
+     * "Ez" and "FY" -- make a map quadratic: 65,536 of them, a 655 KB
+     * frame, took 1.8 s to decode.
+     *
+     * Each key is placed as PHP places it -- an integer, or a digit string
+     * PHP keys as one, by its value; any other string by its DJBX33A hash
+     * -- in a table of the next power of two at least as large as the map,
+     * fewer bits than PHP's own, so keys that share PHP's buckets share
+     * these. Ordinary keys collide in about half a pair per key; this
+     * refuses more than COLLISIONS_PER_KEY.
+     *
+     * @param list<int|string> $keys
+     */
+    private static function assertSpread(array $keys): void
+    {
+        $n = \count($keys);
+        $size = 1;
+        while ($size < $n) {
+            $size <<= 1;
+        }
+        $mask = $size - 1;
+
+        $buckets = [];
+        $pairs = 0;
+        foreach ($keys as $key) {
+            if (\is_string($key) && (string) (int) $key !== $key) {
+                // DJBX33A, as PHP hashes a string key, in the low 32 bits:
+                // the mask reads fewer.
+                $h = 5381;
+                for ($i = 0, $len = \strlen($key); $i < $len; $i++) {
+                    $h = ($h * 33 + \ord($key[$i])) & 0xFFFFFFFF;
+                }
+            } else {
+                $h = (int) $key;
+            }
+            $slot = $h & $mask;
+            $pairs += $buckets[$slot] ?? 0;
+            $buckets[$slot] = ($buckets[$slot] ?? 0) + 1;
+        }
+
+        if ($pairs > self::COLLISIONS_PER_KEY * $n) {
+            throw new CodecException("A map's keys collide in PHP's hash table: {$pairs} pairs among {$n} keys.");
+        }
     }
 
     /**
